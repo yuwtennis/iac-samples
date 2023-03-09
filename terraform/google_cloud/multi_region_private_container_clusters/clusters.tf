@@ -19,11 +19,12 @@ module "blue" {
 
 module "green" {
   source                      = "./autopilot_container_cluster"
+  count                       = var.multi_region_enabled == true ? 1 : 0
   cluster_name                = "green"
   location                    = var.region_green
   allowed_master_access_cidrs = var.allowed_master_access_cidrs
-  network_self_link           = module.nw_green.network_self_link
-  subnetwork_self_link        = module.nw_green.subnet_self_link
+  network_self_link           = module.nw_green[0].network_self_link
+  subnetwork_self_link        = module.nw_green[0].subnet_self_link
   node_config = {
     service_account_email = google_service_account.container_cluster_op_account.email
     oauth_scopes = [
