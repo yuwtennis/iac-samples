@@ -12,8 +12,8 @@ module "nw_blue" {
 }
 
 module "nw_green" {
-  count               = var.multi_region_enabled == true ? 1 : 0
   source              = "./network"
+  count               = var.multi_region_enabled == true ? 1 : 0
   vpc_name            = "nw-green"
   subnet_name         = "nw-green-subnet-0"
   subnet_region       = var.region_green
