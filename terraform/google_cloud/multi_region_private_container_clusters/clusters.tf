@@ -18,6 +18,7 @@ module "blue" {
 }
 
 module "green" {
+  count                       = var.multi_region_enabled == true ? 1 : 0
   source                      = "./autopilot_container_cluster"
   cluster_name                = "green"
   location                    = var.region_green
