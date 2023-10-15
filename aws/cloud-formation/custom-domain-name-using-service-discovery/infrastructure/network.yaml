@@ -1,0 +1,155 @@
+Description: >
+  network.yaml prepares network according to the topology
+
+Parameters:
+  AzIdBlue:
+    Type: String
+    Default: apne1-az4
+  AzIdGreen:
+    Type: String
+    Default: apne1-az1
+  AzIdRed:
+    Type: String
+    Default: apne1-az2
+
+Resources:
+  # VPC
+  DemoVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: demo-vpc
+
+  # Subnet
+  PublicBlueSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: DemoVpc
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZoneId: !Ref AzIdBlue
+      Tags:
+        - Key: Name
+          Value: blue
+  PublicGreenSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: DemoVpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZoneId: !Ref AzIdGreen
+      Tags:
+        - Key: Name
+          Value: green
+  PublicRedSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: DemoVpc
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZoneId: !Ref AzIdRed
+      Tags:
+        - Key: Name
+          Value: red
+  # Gateway
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayToVpc:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: DemoVpc
+      InternetGatewayId:
+        Ref: Gateway
+
+  # Explicit routing
+  PublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: DemoVpc
+  GatewaytoRT:
+    Type: AWS::EC2::Route
+    DependsOn: Gateway
+    Properties:
+      RouteTableId:
+        Ref: PublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: Gateway
+  BlueSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicBlueSubnet
+      RouteTableId:
+        Ref: PublicRT
+  GreenSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicGreenSubnet
+      RouteTableId:
+        Ref: PublicRT
+  RedSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicRedSubnet
+      RouteTableId:
+        Ref: PublicRT
+
+# Security Group
+  ContainerInstanceSg:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: DemoVpc
+    Properties:
+      GroupDescription: EC2
+      VpcId:
+        Ref: DemoVpc
+      SecurityGroupIngress:
+        - Description: cli
+          IpProtocol: tcp
+          FromPort: 2181
+          ToPort: 2181
+          CidrIp: 0.0.0.0/0
+        - Description: peer-to-peer
+          IpProtocol: tcp
+          FromPort: 2888
+          ToPort: 3888
+          CidrIp: 0.0.0.0/0
+        - Description: broker
+          IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - Description: Any
+          IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: ec2-sg
+
+Outputs:
+  DemoVpcId:
+    Value:
+      Ref: DemoVpc
+  PublicBlueSubnetId:
+    Value: 
+      Ref: PublicBlueSubnet
+  PublicGreenSubnetId:
+    Value:
+      Ref: PublicGreenSubnet
+  PublicRedSubnetId:
+    Value: 
+      Ref: PublicRedSubnet
+  ContainerInstanceSg:
+    Value:
+      Ref: ContainerInstanceSg

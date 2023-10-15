@@ -1,0 +1,16 @@
+Description: >
+  ecs-cluster.yaml prepares required ECS cluster for Kafka and Zookeeper
+
+Parameters:
+  ClusterName:
+    Type: String
+
+Resources:
+  Cluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref ClusterName
+
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster

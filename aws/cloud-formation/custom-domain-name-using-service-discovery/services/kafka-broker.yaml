@@ -1,0 +1,87 @@
+Description: >
+  xxx
+
+Parameters:
+  ServiceName:
+    Type: String
+  BrokerNodeId:
+    Type: Number
+  ZooServers:
+    Type: String
+  BrokerImage:
+    Type: String
+    Default: "confluentinc/cp-kafka:latest"
+  BrokerHostname:
+    Type: String
+  BrokerSpecCpu:
+    Type: String
+  BrokerSpecMemory:
+    Type: String
+  BrokerContext:
+    Type: String
+  ECSClusterName:
+    Type: String
+  ExecutionRoleArn:
+    Type: String
+  LogConfAWSCreateGroup:
+    Type: String
+    Default: "true"
+  LogConfAWSLogGroup:
+    Type: String
+    Default: "kafka-broker"
+  LogConfAwsStreamPrefix:
+    Type: String
+    Default: "demo"
+  LogConfAWSRegion:
+    Type: String
+
+Resources:
+  # Task Definition
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      Family: !Ref ServiceName
+      NetworkMode: bridge
+      Cpu: !Ref BrokerSpecCpu
+      Memory: !Ref BrokerSpecMemory
+      RequiresCompatibilities:
+        - "EC2"
+      ContainerDefinitions:
+        - Name: broker
+          Hostname: !Ref BrokerHostname
+          Image: !Ref BrokerImage
+          PortMappings:
+            - ContainerPort: 9092
+              HostPort: 9092
+          Essential: true
+          Environment:
+            - Name: KAFKA_PROCESS_ROLES
+              Value: broker
+            - Name: KAFKA_BROKER_ID
+              Value: ${BrokerNodeId}
+            - Name: KAFKA_ZOOKEEPER_CONNECT
+              Value: !Ref ZooServers
+            - Name: KAFKA_ADVERTISED_LISTENERS
+              Value: PLAINTEXT://localhost:9092
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-create-group: !Ref LogConfAWSCreateGroup
+              awslogs-group: !Ref LogConfAWSLogGroup
+              awslogs-region: !Ref LogConfAWSRegion
+              awslogs-stream-prefix: !Ref LogConfAwsStreamPrefix
+      PlacementConstraints:
+        - Expression: !Sub "attribute:context == ${BrokerContext}"
+          Type: "memberOf"
+
+  # Service
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: "EC2"
+      ServiceName: !Ref ServiceName
+      DesiredCount: 1
+      Cluster:
+        Ref: ECSClusterName
