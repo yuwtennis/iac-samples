@@ -1,5 +1,5 @@
 
-# Custom domain name for ECS Task running on EC2 in private network
+# An example of peer to peer communication using custom domain name
 
 An example template for bootstrapping 
 
