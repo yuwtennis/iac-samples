@@ -38,6 +38,9 @@ resource "google_container_cluster" "cluster" {
     # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
     service_account = var.node_config["service_account_email"]
     oauth_scopes    = var.node_config["oauth_scopes"]
+    machine_type    = var.node_config["machine_type"]
+    disk_type       = var.node_config["disk_type"]
+    disk_size_gb    = var.node_config["disk_size_gb"]
   }
   timeouts {
     create = local.create_timeout

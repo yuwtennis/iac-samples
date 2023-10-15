@@ -8,8 +8,11 @@ module "blue" {
   node_config = {
     service_account_email = google_service_account.container_cluster_op_account.email
     oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
+      "https://www.googleapis.com/auth/cloud-platform",
+      ]
+    machine_type = "e2-small",
+    disk_type    = "pd-standard",
+    disk_size_gb = 30
   }
   pod_range_name          = var.nw_blue_pod_ipv4_cidr_range["name"]
   pod_ipv4_cidr_block     = var.nw_blue_pod_ipv4_cidr_range["range"]
@@ -29,7 +32,10 @@ module "green" {
     service_account_email = google_service_account.container_cluster_op_account.email
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
-    ]
+    ],
+    machine_type = "e2-small"
+    disk_type    = "pd-standard"
+    disk_size_gb = 30
   }
   pod_range_name          = var.nw_green_pod_ipv4_cidr_range["name"]
   pod_ipv4_cidr_block     = var.nw_green_pod_ipv4_cidr_range["range"]
