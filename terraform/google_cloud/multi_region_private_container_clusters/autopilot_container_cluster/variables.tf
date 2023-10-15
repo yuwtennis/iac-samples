@@ -30,12 +30,21 @@ variable "subnetwork_self_link" {
 }
 
 variable "node_config" {
-  type = object({ service_account_email = string, oauth_scopes = list(string) })
+  type = object({
+    service_account_email = string,
+    oauth_scopes = list(string),
+    machine_type = string,
+    disk_type = string,
+    disk_size_gb = number
+  })
   default = {
     service_account_email = "admin@localhost.localdomain"
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
+    machine_type = "e2-small"
+    disk_type    = "pd-standard"
+    disk_size_gb = 30
   }
 }
 
