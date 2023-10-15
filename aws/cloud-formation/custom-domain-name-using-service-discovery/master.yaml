@@ -1,0 +1,214 @@
+Description:
+  master.yaml orchestrates all nested stacks
+ 
+  As for 2023.10.14 , ForEach is not available due to below issue.
+  
+  New Fn::ForEach function breaks cloudformation package CLI
+  https://github.com/aws/aws-cli/issues/8075
+
+Parameters:
+  ECSContainerInstanceAMIId:
+    Type: String
+    # ECS Optimized Amazon Linux 2, Created on 2023-10-04T00:06:00.622000+09:00
+    Default: "ami-0f53880976e2369ba"
+  ECSContainerInstanceType:
+    Type: String
+    Default: "t3.small"
+  ZoneName:
+    Type: String
+    Default: "ecs-service.net"
+  BlueHostName:
+    Type: String
+    Default: "blue"
+  GreenHostName:
+    Type: String
+    Default: "green"
+  RedHostName:
+    Type: String
+    Default: "red"
+
+Resources:
+  IAM:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/iam.yaml'
+      Parameters:
+        Path: "/demo/"
+  Network:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/network.yaml'
+
+  # ECS
+  DemoCluster:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/ecs-cluster.yaml'
+      Parameters:
+        ClusterName: "Demo"
+  ECSContainerInstancesBlue:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/ecs-ec2-container-instance.yaml'
+      Parameters:
+        InstanceProfileName: !GetAtt IAM.Outputs.EC2ContainerInstanceProfileName
+        SecurityGroupId: !GetAtt Network.Outputs.ContainerInstanceSg
+        SubnetId: !GetAtt Network.Outputs.PublicBlueSubnetId
+        AmiId: !Ref ECSContainerInstanceAMIId
+        InstanceType: !Ref ECSContainerInstanceType
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        Name: "ContainerInstanceBlue"
+        IsPublicIpAddressEnabled: "true"
+        PlacementConstraintContext: "ContainerInstanceBlue"
+  ECSContainerInstancesGreen:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/ecs-ec2-container-instance.yaml'
+      Parameters:
+        InstanceProfileName: !GetAtt IAM.Outputs.EC2ContainerInstanceProfileName
+        SecurityGroupId: !GetAtt Network.Outputs.ContainerInstanceSg
+        SubnetId: !GetAtt Network.Outputs.PublicGreenSubnetId
+        AmiId: !Ref ECSContainerInstanceAMIId
+        InstanceType: !Ref ECSContainerInstanceType
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        Name: "ContainerInstanceGreen"
+        IsPublicIpAddressEnabled: "true"
+        PlacementConstraintContext: "ContainerInstanceGreen"
+  ECSContainerInstancesRed:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/ecs-ec2-container-instance.yaml'
+      Parameters:
+        InstanceProfileName: !GetAtt IAM.Outputs.EC2ContainerInstanceProfileName
+        SecurityGroupId: !GetAtt Network.Outputs.ContainerInstanceSg
+        SubnetId: !GetAtt Network.Outputs.PublicRedSubnetId
+        AmiId: !Ref ECSContainerInstanceAMIId
+        InstanceType: !Ref ECSContainerInstanceType
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        Name: "ContainerInstanceRed"
+        IsPublicIpAddressEnabled: "true"
+        PlacementConstraintContext: "ContainerInstanceRed"
+
+  # Container instance domain names
+  PrivateZone:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/dns-zone.yaml'
+      Parameters:
+        ZoneName: !Ref ZoneName
+        VpcId: !GetAtt Network.Outputs.DemoVpcId
+        RegionName: !Ref "AWS::Region"
+  BlueDomainName:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/dns-rr-a.yaml'
+      Parameters:
+        ZoneId: !GetAtt PrivateZone.Outputs.ZoneId
+        ZoneName: !Ref ZoneName
+        HostName: !Ref BlueHostName
+        Ipv4Addr: !GetAtt ECSContainerInstancesBlue.Outputs.Ipv4Addr
+  GreenDomainName:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/dns-rr-a.yaml'
+      Parameters:
+        ZoneId: !GetAtt PrivateZone.Outputs.ZoneId
+        ZoneName: !Ref ZoneName
+        HostName: !Ref GreenHostName
+        Ipv4Addr: !GetAtt ECSContainerInstancesGreen.Outputs.Ipv4Addr
+  RedDomainName:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'infrastructure/dns-rr-a.yaml'
+      Parameters:
+        ZoneId: !GetAtt PrivateZone.Outputs.ZoneId
+        ZoneName: !Ref ZoneName
+        HostName: !Ref RedHostName
+        Ipv4Addr: !GetAtt ECSContainerInstancesRed.Outputs.Ipv4Addr
+
+  # Application services
+  # Zookeeper
+  ZookeeperBlueService:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'services/zookeeper.yaml'
+      Parameters:
+        ServiceName: zoo-blue
+        DesiredCount: 1
+        ZookeeperImage: "zookeeper:3.9.0"
+        ZooServers: !Join
+          - ' '
+          - - !Sub server.1=${BlueHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.2=${GreenHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.3=${RedHostName}.${ZoneName}:2888:3888;2181
+        ZooHostname: !GetAtt BlueDomainName.Outputs.DomainName
+        ZooSpecCpu: 256
+        ZooSpecMemory: 512
+        ZooId: 1
+        ZooContext: "ContainerInstanceBlue"
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        ExecutionRoleArn: !GetAtt IAM.Outputs.ECSTaskExecutionRoleArn
+        LogConfAWSRegion: !Ref "AWS::Region"
+  ZookeeperGreenService:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'services/zookeeper.yaml'
+      Parameters:
+        ServiceName: zoo-green
+        DesiredCount: 1
+        ZookeeperImage: "zookeeper:3.9.0"
+        ZooServers: !Join
+          - ' '
+          - - !Sub server.1=${BlueHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.2=${GreenHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.3=${RedHostName}.${ZoneName}:2888:3888;2181
+        ZooHostname: !GetAtt GreenDomainName.Outputs.DomainName
+        ZooSpecCpu: 256
+        ZooSpecMemory: 512
+        ZooId: 2
+        ZooContext: "ContainerInstanceGreen"
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        ExecutionRoleArn: !GetAtt IAM.Outputs.ECSTaskExecutionRoleArn
+        LogConfAWSRegion: !Ref "AWS::Region"
+  ZookeeperRedService:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'services/zookeeper.yaml'
+      Parameters:
+        ServiceName: zoo-red
+        DesiredCount: 1
+        ZookeeperImage: "zookeeper:3.9.0"
+        ZooServers: !Join
+          - ' '
+          - - !Sub server.1=${BlueHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.2=${GreenHostName}.${ZoneName}:2888:3888;2181
+            - !Sub server.3=${RedHostName}.${ZoneName}:2888:3888;2181
+        ZooHostname: !GetAtt RedDomainName.Outputs.DomainName
+        ZooSpecCpu: 256
+        ZooSpecMemory: 512
+        ZooId: 3
+        ZooContext: "ContainerInstanceRed"
+        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+        ExecutionRoleArn: !GetAtt IAM.Outputs.ECSTaskExecutionRoleArn
+        LogConfAWSRegion: !Ref "AWS::Region"
+  # Kafka Broker
+#  BrokerBlueService:
+#    Type: 'AWS::CloudFormation::Stack'
+#    Properties:
+#      TemplateURL: 'services/kafka-broker.yaml'
+#      Parameters:
+#        ServiceName: broker-blue
+#        BrokerNodeId: 1
+#        BrokerImage: "confluentinc/cp-kafka:7.5.1"
+#        ZooServers: !Join
+#          - ','
+#          - - !Sub ${BlueHostName}.${ZoneName}:2181
+#            - !Sub ${GreenHostName}.${ZoneName}:2181
+#            - !Sub ${RedHostName}.${ZoneName}:2181
+#        BrokerHostname: !GetAtt BlueDomainName.Outputs.DomainName
+#        BrokerSpecCpu: 256
+#        BrokerSpecMemory: 512
+#        BrokerContext: "ContainerInstanceRed"
+#        ECSClusterName: !GetAtt DemoCluster.Outputs.ClusterName
+#        ExecutionRoleArn: !GetAtt IAM.Outputs.ECSTaskExecutionRoleArn
+#        LogConfAWSRegion: !Ref "AWS::Region"

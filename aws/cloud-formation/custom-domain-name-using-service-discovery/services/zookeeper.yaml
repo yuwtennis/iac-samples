@@ -1,0 +1,88 @@
+Description: >
+  xxx
+
+Parameters:
+  ServiceName:
+    Type: String
+  ZooServers:
+    Type: String
+  ZookeeperImage:
+    Type: String
+    Default: "zookeeper:latest"
+  ZooHostname:
+    Type: String
+  ZooSpecCpu:
+    Type: String
+  ZooSpecMemory:
+    Type: String
+  ZooId:
+    Type: Number
+  ZooContext:
+    Type: String
+  ECSClusterName:
+    Type: String
+  ExecutionRoleArn:
+    Type: String
+  LogConfAWSCreateGroup:
+    Type: String
+    Default: "true"
+  LogConfAWSLogGroup:
+    Type: String
+    Default: "zookeeper"
+  LogConfAwsStreamPrefix:
+    Type: String
+    Default: "demo"
+  LogConfAWSRegion:
+    Type: String
+  DesiredCount:
+    Type: Number
+
+Resources:
+  # Task Definition
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      Family: !Ref ServiceName
+      NetworkMode: bridge
+      Cpu: !Ref ZooSpecCpu
+      Memory: !Ref ZooSpecMemory
+      RequiresCompatibilities:
+        - "EC2"
+      ContainerDefinitions:
+        - Name: zookeeper
+          Hostname: !Ref ZooHostname
+          Image: !Ref ZookeeperImage
+          PortMappings:
+            - ContainerPort: 2181
+              HostPort: 2181
+            - ContainerPort: 2888
+              HostPort: 2888
+            - ContainerPort: 3888
+              HostPort: 3888
+          Essential: true
+          Environment:
+            - Name: ZOO_ID
+              Value: !Ref ZooId
+            - Name: ZOO_SERVERS
+              Value: !Ref ZooServers
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-create-group: !Ref LogConfAWSCreateGroup
+              awslogs-group: !Ref LogConfAWSLogGroup
+              awslogs-region: !Ref LogConfAWSRegion
+              awslogs-stream-prefix: !Ref LogConfAwsStreamPrefix
+      PlacementConstraints:
+        - Expression: !Sub "attribute:context == ${ZooContext}"
+          Type: "memberOf"
+  # Service
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: "EC2"
+      ServiceName: !Ref ServiceName
+      DesiredCount: !Ref DesiredCount
+      Cluster:
+        Ref: ECSClusterName
