@@ -1,0 +1,26 @@
+
+Parameters:
+  ZoneId:
+    Type: String
+  ZoneName:
+    Type: String
+  HostName:
+    Type: String
+  Ipv4Addr:
+    Type: String
+
+Resources:
+  DomainName:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref ZoneId
+      Comment: "Domain name"
+      Name: !Sub "${HostName}.${ZoneName}"
+      Type: A
+      TTL: 900
+      ResourceRecords:
+        - !Ref Ipv4Addr
+
+Outputs:
+  DomainName:
+    Value: !Ref DomainName

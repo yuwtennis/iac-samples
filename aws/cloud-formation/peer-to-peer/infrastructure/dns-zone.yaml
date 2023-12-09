@@ -1,0 +1,24 @@
+
+Parameters:
+  ZoneName:
+    Type: String
+  VpcId:
+    Type: String
+  RegionName:
+    Type: String
+
+Resources:
+  PrivateHostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Properties:
+      HostedZoneConfig:
+        Comment: "Private hosted zone name"
+      Name: !Ref ZoneName
+      VPCs:
+        -
+          VPCId: !Ref VpcId
+          VPCRegion: !Ref RegionName
+
+Outputs:
+  ZoneId:
+    Value: !Ref PrivateHostedZone
